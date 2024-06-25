@@ -1,0 +1,3074 @@
+openapi: '3.1.0'
+info:
+  title: TalkJS API
+  summary: Manage messages, conversations, users, notifications and app metadata
+  description: |
+    The TalkJS REST API allows you to manage messages, conversations, sessions, users and notifications from your backend.
+
+    The API is REST-based, using HTTP and JSON. The API only accepts authenticated calls over HTTPS, and uses standard HTTP status codes for reporting results.
+
+    ## Authentication
+
+    Authentication helps keep your chat and user data secure.
+
+    ### Single-use token authentication
+
+    The TalkJS REST API works with token-based authentication. Because the REST API has read/write access to all data in your TalkJS account, we recommend using single-use tokens.
+     
+    With single-use tokens, your server generates a new token for each REST API request. Single-use tokens allow you to set an extremely short expiry time for a token. That means that even if you accidentally leak a token, the token will expire before anyone can exploit it.
+
+    The following are example code snippets in different languages to generate a REST API token that expires after 30 seconds.
+
+    #### NodeJS
+
+    ```js
+    // Uses `jsonwebtoken`: https://www.npmjs.com/package/jsonwebtoken
+    import jwt from 'jsonwebtoken';
+
+    const encoded_jwt = jwt.sign({ tokenType: 'app' }, '<SECRET_KEY>', {
+      issuer: '<MAGIC_APP_ID>',
+      expiresIn: '30s',
+    });
+    console.log(encoded_jwt);
+    ```
+
+    #### Python
+    ```python
+    # Uses `PyJWT`: https://pypi.org/project/PyJWT/
+    import jwt
+    import time
+
+    payload = {
+      "tokenType": "app",
+      "iss": "<MAGIC_APP_ID>",
+      "exp": time.time() + 30
+    }
+    encoded_jwt = jwt.encode(payload, "<SECRET_KEY>")
+    print(encoded_jwt)
+    ```
+
+    #### PHP
+    ```php
+    <?php
+    // Uses `lcobucci/jwt`: https://packagist.org/packages/lcobucci/jwt
+    use Lcobucci\JWT\Encoding\ChainedFormatter;
+    use Lcobucci\JWT\Encoding\JoseEncoder;
+    use Lcobucci\JWT\Signer\Key\InMemory;
+    use Lcobucci\JWT\Signer\Hmac\Sha256;
+    use Lcobucci\JWT\Token\Builder;
+    require 'vendor/autoload.php';
+
+    $tokenBuilder = new Builder(new JoseEncoder(), ChainedFormatter::default());
+    $algorithm = new Sha256();
+    $signingKey = InMemory::plainText("<SECRET_KEY>_GOES_HERE_REPLACING_THIS_TEXT");
+
+    $now = new DateTimeImmutable();
+    $token = $tokenBuilder
+      ->withClaim('tokenType', 'app')
+      ->issuedBy('<MAGIC_APP_ID>')
+      ->expiresAt($now->modify('+30 seconds'))
+      ->getToken($algorithm, $signingKey)
+      ->toString();
+    echo $token;
+    ```
+
+    #### Ruby
+    ```rb
+    # Uses `jwt`: https://rubygems.org/gems/jwt
+    require 'jwt'
+
+    payload = {
+      tokenType: 'app',
+      iss: '<MAGIC_APP_ID>',
+      exp: Time.now.to_i + 30
+    }
+    token = JWT.encode payload,
+      '<SECRET_KEY>',
+      'HS256'
+    puts token
+    ```
+
+    #### Java
+    ```java
+    // Uses `java-jwt`: https://mvnrepository.com/artifact/com.auth0/java-jwt
+    import com.auth0.jwt.algorithms.Algorithm;
+    import com.auth0.jwt.JWT;
+    import java.util.Date;
+
+    public class Main {
+      public static void main(String[] args) {
+        Algorithm algorithm = Algorithm.HMAC256("<SECRET_KEY>");
+        String token = JWT.create()
+          .withClaim("tokenType", "app")
+          .withIssuer("<MAGIC_APP_ID>")
+          .withExpiresAt(new Date(System.currentTimeMillis() + 30 * 1000))
+          .sign(algorithm);
+        System.out.println(token);
+      }
+    }
+    ```
+
+    #### C#
+    ```csharp
+    // Uses `jose-jwt`: https://www.nuget.org/packages/jose-jwt/
+    using Jose;
+    using System;
+    using System.Collections.Generic;
+    using System.Text;
+
+    class Program
+    {
+      static void Main(string[] args)
+      {
+        var epochSeconds = DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1)).TotalSeconds;
+        var payload = new Dictionary<string, object>()
+          {
+            { "tokenType", "app" },
+            { "iss", "<MAGIC_APP_ID>" },
+            { "exp", epochSeconds + 30 }
+          };
+        var secret = Encoding.UTF8.GetBytes("<SECRET_KEY>");
+        string token = Jose.JWT.Encode(payload, secret, JwsAlgorithm.HS256);
+        Console.WriteLine(token);
+      }
+    }
+    ```
+
+    #### Go
+    ```go
+    package main
+
+    import (
+      "fmt"
+      "time"
+    )
+
+    import "github.com/golang-jwt/jwt/v5"
+
+    func main() {
+      token := jwt.NewWithClaims(
+        jwt.SigningMethodHS256,
+        jwt.MapClaims{
+          "tokenType": "app",
+          "iss": "<MAGIC_APP_ID>",
+          "exp": time.Now().Add(10 * time.Minute).Unix(),
+        })
+
+      secret := []byte("<SECRET_KEY>")
+      tokenString, err := token.SignedString(secret)
+      fmt.Println(tokenString, err)
+    }
+    ```
+
+    #### Elixir
+    ```ex
+    # Uses `joken`: https://hex.pm/packages/joken
+    # Requires json library eg `jason`: https://hex.pm/packages/jason
+
+    # config/config.exs
+    import Config
+    config :joken, default_signer: "<SECRET_KEY>"
+
+    # lib/talkjs_token.ex
+    defmodule TalkjsToken do
+      use Joken.Config
+
+      def token_config do
+        default_claims(
+          skip: [:aud, :jti],
+          iss: "<MAGIC_APP_ID>",
+          default_exp: 30
+        )
+        |> add_claim("tokenType", fn -> "app" end)
+      end
+    end
+
+    # lib/main.ex
+    token = TalkjsToken.generate_and_sign!(%{})
+    IO.inspect(token)
+    ```
+
+    #### Dart
+
+    ```dart
+    // Uses `dart_jsonwebtoken`: https://pub.dev/packages/dart_jsonwebtoken
+    import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
+
+    void main(List<String> arguments) {
+      final jwt = JWT(
+        {'tokenType': 'app'},
+        issuer: '<MAGIC_APP_ID>',
+      );
+
+      final encoded_jwt = jwt.sign(
+        SecretKey('<SECRET_KEY>'),
+        expiresIn: Duration(seconds: 30),
+      );
+
+      print(encoded_jwt);
+    }
+    ```
+
+    Authentication is performed with the `Authorization` header. Provide your token in the following format:
+    
+    ```js
+    Authorization: Bearer <TOKEN>
+    ```
+
+    For example:
+    
+    ```js
+    fetch('https://api.talkjs.com/v1/aDr8oPL1', {
+    headers: {
+      Authorization: 'Bearer ' + generateToken(),
+    },
+    });
+    ```
+
+    Never expose your secret key in frontend code. Anyone with a REST API token has admin access to your TalkJS account. Instead, only let your users call the REST API by asking your backend to do it for them.
+
+    For more details on using authentication tokens, see: [Authentication token reference documentation](https://talkjs.com/docs/Features/Security_Settings/Advanced_Authentication/#token-reference).
+
+    ### Secret key authentication (legacy)
+
+    You can also use your secret key for authentication directly. To authenticate with your secret key, use the "Authorization" header and put your private key in the following format:
+
+    ```js
+    Authorization: Bearer <SECRET_KEY>
+    ```
+    
+    You can find your secret API key on the **Settings** page of your [dashboard](https://talkjs.com/dashboard).
+
+    **Note:** Never expose your secret key in frontend code. If you accidentally leak your secret key, a malicious user could exploit it and modify your data forever.
+
+    Secret key authentication is supported for legacy purposes. For more secure authentication, authenticate with single-user tokens instead.
+
+    ## Content type
+
+    All requests other than file uploads accept a JSON payload, with the content type specified as: `Content-type: application/json`.
+
+    To upload a file, specify the content type as: `Content-type: multipart/form-data`. For more on how to upload a file, see the file upload endpoint.
+
+    HTTP GET requests have no content. 
+
+    ## Return values
+
+    TalkJS uses HTTP status codes to indicate whether the request was successful or not. TalkJS always returns HTTP status `200 OK` if a request is successful.
+
+    Statuses in the 4xx range mean that the user input wasn't correct. More specifically:
+
+    - **400** means that one or more of the arguments passed were incorrect.
+    - **401** means that the "Authorization" header with the token wasn't present or was incorrect.
+    - **404** means that the resource wasn't found.
+
+    Very rarely, TalkJS may return a status in the **5xx** range, which indicates that something went wrong on the TalkJS servers. You can safely retry this operation. If the issue persists, [get in touch](https://talkjs.com/?chat).
+
+    To verify whether a call was successful, use the HTTP status code.
+
+    All API responses are JSON. Even calls that return no data have a `{}` response.
+
+    ## Rate limiting
+
+    The REST API applies rate limiting to ensure fair use. 
+    
+    Rate limits apply individually to each app ID. That means that requests sent using your test app ID and your live app ID count separately.
+
+    ### Default limits
+
+    The default REST API rate limits are the following: 
+
+    | Rate limit | Default |
+    | -- | -- |
+    | Maximum burst | 600 requests |
+    | Maximum queue length | 100 requests |
+    | Sustained rate limit | 9 requests per second, on average |
+
+    #### Example
+    
+    If you would send 700 requests in quick succession, then:
+
+    - TalkJS processes and responds to the first 500 requests instantly.
+    - The next 100 requests are put in the queue. Over time, TalkJS processes and responds to these 100 queued requests, at a rate of 9 requests per second.
+    - The last 100 requests immediately receive an HTTP `429 Too many requests` response.
+
+    ### Increasing limits
+
+    Do you need a higher rate limit? To discuss increasing your rate limits, [get in touch](https://talkjs.com/?chat).
+
+    ## Import existing data
+
+    You can import data from any existing messaging system into TalkJS.
+
+    To import data from an existing messaging system, send TalkJS data on: your users, conversations, and messages. Make sure your import script completes the following steps, in order:
+
+    1. Import all users with the 'Create or update a user' resource.
+    2. Import all conversations the 'Create or update a conversation' resource.
+    3. Import all messages with the 'Import messages' resource.
+
+    To make sure that everything works as expected, import your data into the TalkJS test mode before importing your data into live mode. 
+    
+    If anything goes wrong while testing your import, you can use the **Reset all data** button on the **Settings** page of your [dashboard](https://talkjs.com/dashboard/) to delete all messages, conversations, and users.
+
+    **Note:**  You can only import messages sent by conversation participants. You can't import [system messages](https://talkjs.com/docs/Reference/Concepts/System_Messages/) or messages sent by [guests](https://talkjs.com/docs/Reference/Concepts/Guests/).
+
+    ## Versions
+
+    The REST API is versioned, to ensure that your code keeps working when we need to make breaking changes. Non-breaking changes, such as a new endpoint or new optional parameters, don't have their own version.
+
+    All API requests use the latest version by default. You can find the default API version for your app on the **Settings** page of your [dashboard](https://talkjs.com/dashboard).
+
+    To override the default API version, you can use the TalkJS-REST-Version header to specify per HTTP request what version you would like to use:
+
+    ```bash
+    curl /v1/${appId}/users/${userId} \
+      -H "TalkJS-REST-Version: 2021-02-09"
+    ```
+
+  termsOfService: https://talkjs.com/terms/
+  contact:
+    name: TalkJS team
+    url: https://talkjs.com/?chat
+    email: hey@talkjs.com
+  license:
+    name: MIT License
+    url: https://mit-license.org
+  version: '2024-01-01'
+
+servers:
+  - url: https://api.talkjs.com
+    description: Production server
+
+externalDocs:
+  description: TalkJS documentation
+  url: https://talkjs.com/docs
+
+tags:
+  - name: Conversations
+    description: Operations related to conversations
+    externalDocs:
+      url: https://talkjs.com/docs/Reference/Concepts/Conversations/
+  - name: Messages
+    description: Operations related to messages
+    externalDocs:
+      url: https://talkjs.com/docs/Reference/Concepts/Messages/
+  - name: Users
+    description: Operations related to users
+    externalDocs:
+      url: https://talkjs.com/docs/Reference/Concepts/Users/
+  - name: Participation
+    description: Operations related to participation
+  - name: User presence
+    description: Operations related to user presence
+  - name: Notifications
+    description: Operations related to notifications
+    externalDocs:
+      url: https://talkjs.com/docs/Features/Notifications/
+  - name: Files
+    description: Operations related to files
+  - name: Batch operations
+    description: Batch operations
+  - name: App metadata
+    description: Operations related to app metadata
+
+paths:
+  /v1/{appId}:
+    summary: Path for operations on app metadata
+    description: |
+      Use this endpoint to get or update app metadata. An _app_ is the test or live environment your TalkJS project. _Metadata_ include the app's ID, its default locale, and any custom properties.
+
+    get:
+      tags:
+        - App metadata
+      summary: Get app metadata
+      description: |
+        Gets metadata for your app. _Metadata_ include the app's ID, its default locale, and any custom properties.
+      operationId: getAppMetadata
+      parameters:
+        - $ref: '#/components/parameters/AppID'
+      responses:
+        '200':
+          $ref: '#/components/responses/GetAppMetadataSuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+
+    put:
+      tags:
+        - App metadata
+      summary: Update app metadata
+      description: |
+        Use this endpoint to update metadata for your app. _Metadata_ include the app's ID, its default locale, and any custom properties.
+
+        You can't update the app ID itself. If given, the `id` must correspond to the `appId` path parameter.
+      operationId: updateAppMetadata
+      parameters:
+        - $ref: '#/components/parameters/AppID'
+      requestBody:
+        $ref: '#/components/requestBodies/UpdateAppMetadataRequestBody'
+      responses:
+        '200':
+          $ref: '#/components/responses/EmptyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '415':
+          $ref: "#/components/responses/UnsupportedMediaTypeResponse"
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+
+  /v1/{appId}/users:
+    summary: Path for operations on users
+    description: |
+      Use this endpoint to list users in an app, or to batch update users.
+
+    get:
+      tags:
+        - Users
+      summary: List users in an app
+      description: |
+        Lists all users that were ever created in your TalkJS application. 
+        
+        You can filter results based on whether the user is online or not, and by a timestamp for when the user was created.
+      operationId: listUsers
+      parameters:
+        - $ref: '#/components/parameters/AppID'
+        - $ref: '#/components/parameters/IsOnline'
+        - $ref: '#/components/parameters/UserOrMessageLimit'
+        - $ref: '#/components/parameters/Pagination'
+      responses:
+        '200':
+          $ref: '#/components/responses/ListUsersSuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+
+    put:
+      tags:
+        - Users
+      summary: Batch update users
+      description: |
+        Update multiple users with a single API call. The key for each user object is that user's `id`.
+
+        If all of the provided user objects to update are valid, then all updates are applied and you receive a HTTP `200 OK` status code. If one or more of the user objects to update are invalid, then none of the updates is applied, even if some of them were valid. In case of an update with an invalid object, you receive an HTTP `400 Bad Request` status code, along with an object that holds error messages for the invalid updates.
+
+        **Note:** You can update a maximum of 100 users with a single API call. Attempting to update more users at once results in a `400 Bad Request` response, and no users are updated.
+      operationId: batchUpdateUsers
+      parameters:
+        - $ref: '#/components/parameters/AppID'
+      requestBody:
+        $ref: '#/components/requestBodies/BatchUpdateUsersRequestBody'
+      responses:
+        '200':
+          $ref: '#/components/responses/EmptyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '415':
+          $ref: "#/components/responses/UnsupportedMediaTypeResponse"
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+  
+  /v1/{appId}/users/{userId}:
+    summary: Path for operations on a specific user
+    description: |
+      Use this endpoint to create, update, or get a specific user.
+
+    get:
+      tags:
+        - Users
+      summary: Get a user
+      description: |
+        Gets a specific user by their user ID. A user is a person or a group of people who uses your app. 
+        
+        For more on the concept of a user in TalkJS, see: [Users](https://talkjs.com/docs/Reference/Concepts/Users/).
+      operationId: getUser
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+        - $ref: "#/components/parameters/UserID"
+      responses:
+        '200':
+          $ref: "#/components/responses/GetUserSuccessResponse"
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+
+    put: 
+      tags:
+        - Users
+      summary: Create or update a user
+      description: |
+        Creates a user, or updates user details. If a user with this specific user ID exists, then this operation updates their user details. If a user with this specific user ID doesn't yet exist, then it creates a new user with the set details. 
+
+        **Note:** To update user details, you only need to send the subset of fields you want to update. In that respect, even though you update a user with an HTTP `PUT` request method, the user update acts similar to an HTTP `PATCH` request method.
+
+        ### Remove user data
+
+        Currently you can't delete a user. Instead, you can update the user's data to remove any personally identifiable information associated with the user. 
+        
+        To automate the process of removing user data, use the [Anonymize user data](https://github.com/talkjs/talkjs-examples/tree/master/rest-api/anonymizing-user) script from the TalkJS examples GitHub repository.
+      operationId: createOrUpdateUser
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+        - $ref: "#/components/parameters/UserID"
+      requestBody: 
+        $ref: "#/components/requestBodies/CreateOrUpdateUserRequestBody"  
+      responses:
+        '200':
+          $ref: "#/components/responses/EmptyResponse"
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '415':
+          $ref: "#/components/responses/UnsupportedMediaTypeResponse"
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+          
+  /v1/{appId}/users/{userId}/conversations:
+    summary: Path for operations on conversations for a specific user
+    description: |
+      Use this endpoint to list all conversations for a specific user.
+
+    get:
+      tags:
+        - Users
+      summary: List conversations a user is part of
+      description: |
+        Lists all conversations that a user is a part of.
+        
+        The response contains user-specific fields to indicate whether a user has any unread messages in a conversation (`isUnread`), and a counter for unread messages (`unreadMessageCount`).
+
+        You can filter results with optional provided filters, or create your own custom filters.
+        
+        ### Filter by custom filters
+
+        You can create a custom filter in the required JSON structure using your preferred programming language. The filter interface is the same as the JavaScript SDK's [Conversation filter](https://talkjs.com/docs/Reference/JavaScript_Chat_SDK/Other_interfaces/#ConversationPredicate). URLencode the JSON formatted filter to use your custom filter.
+
+        #### NodeJS example
+
+        ```js
+        // fetches a conversation which has a custom field { "category": "shoes" } and the user can read and write in
+        const filter = {
+          custom: { category: ['==', 'shoes'], access: ['==', 'ReadWrite'] },
+        };
+        const encodedFilter = encodeURIComponent(JSON.stringify(filter));
+        const res = await fetch(
+          `https://api.talkjs.com/v1/${appId}/users/${userId}/conversations?filter=${encodedFilter}`
+        );
+        const conversations = await res.json();
+        ```
+      operationId: listConversationsForUser
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+        - $ref: "#/components/parameters/UserID"
+        - $ref: "#/components/parameters/OrderBy"
+        - $ref: "#/components/parameters/OrderDirection"
+        - $ref: "#/components/parameters/Pagination"
+        - $ref: "#/components/parameters/ConversationLimit"
+        - $ref: "#/components/parameters/OffsetTs"
+        - $ref: "#/components/parameters/LastMessageAfter"
+        - $ref: "#/components/parameters/LastMessageBefore"
+        - $ref: "#/components/parameters/UnreadsOnly"
+      responses:
+        '200':
+          $ref: "#/components/responses/ListConversationsForUserSuccessResponse"
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+        
+    
+  /v1/{appId}/users/{userId}/sessions:
+    summary: Path for operations on sessions for a specific user
+    description: |
+      Use this endpoint to get all sessions for a specific user.
+
+    get:
+      tags:
+        - User presence
+      summary: List sessions for a user
+      description: |
+        Lists all sessions for a specific user.
+
+        If you create a TalkJS session on every page, then a user can have multiple session objects: one for the TalkJS background session, and one for each TalkJS UI that's in focus.
+
+        ### Examples
+
+        User `alice` is offline:
+        
+        ```js
+        // request:
+        GET https://api.talkjs.com/v1/YOUR_APP_ID/users/alice/sessions
+        
+        // response:
+        []
+        ```
+
+        User `alice` is logged into your site, but doesn't have a TalkJS UI in focus:
+        
+        ```js
+        // request:
+        GET https://api.talkjs.com/v1/YOUR_APP_ID/users/alice/sessions
+        
+        // response:
+        [
+          {
+            "isTyping": false,
+            "currentConversationId": null
+          }
+        ]
+        ```
+        
+        User `alice` is logged into your site, has a TalkJS UI in focus and is currently typing a message in conversation `1234`:
+        
+        ```js
+        // request:
+        GET https://api.talkjs.com/v1/YOUR_APP_ID/users/alice/sessions
+        
+        // response:
+        [
+          {
+            "isTyping": false,
+            "currentConversationId": null
+          },
+          {
+            "isTyping": true,
+            "currentConversationId": "1234"
+          }
+        ]
+        ```
+      operationId: listSessionsForUser
+      deprecated: true
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+        - $ref: "#/components/parameters/UserID"
+      responses:
+        '200':
+          $ref: "#/components/responses/ListSessionsForUserSuccessResponse"
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+
+  /v1/{appId}/presences:
+    summary: Path for operations on user presence
+    description: |
+      Use this endpoint to create a list of online users.
+
+    post:
+      tags:
+        - User presence
+      summary: List online users
+      description: |
+        Lists online users. 
+
+        You can programmatically check the online status and current activity of users on your app.
+
+        If you create a TalkJS session on every page—which we recommend—then TalkJS internally stores two sessions: one background session for each user, and one session for each active [TalkJS chat UI widget](https://talkjs.com/docs/Features/Chat_UI_Modes/). 
+        
+        By default, we don't return users with only a background session. You can change this behavior by passing the `includeBackgroundSessions` option.
+      operationId: listOnlineUsers
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+      requestBody:
+        $ref: "#/components/requestBodies/ListOnlineUsersRequestBody"
+      responses:
+        '200':
+          $ref: "#/components/responses/ListOnlineUsersSuccessResponse"
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '415':
+          $ref: "#/components/responses/UnsupportedMediaTypeResponse"
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+
+  /v1/{appId}/conversations:
+    summary: Path for operations on conversations
+    description: |
+      Use this endpoint to list all conversations in an application.
+
+    get:
+      tags:
+        - Conversations
+      summary: List conversations
+      description: |
+        Lists all conversations ever created in your TalkJS application. 
+
+        You can filter results with optional provided filters, or create your own custom filters.
+        
+        ### Filter by custom filters
+
+        You can create a custom filter in the required JSON structure using your preferred programming language. The filter interface is the same as the JavaScript SDK's [Conversation filter](https://talkjs.com/docs/Reference/JavaScript_Chat_SDK/Other_interfaces/#ConversationPredicate). URLencode the JSON formatted filter to use your custom filter.
+
+        #### NodeJS example
+
+        ```js
+        // fetches a conversation which has a custom field { "category": "shoes" } and the user can read and write in
+        const filter = {
+          custom: { category: ['==', 'shoes'], access: ['==', 'ReadWrite'] },
+        };
+        const encodedFilter = encodeURIComponent(JSON.stringify(filter));
+        const res = await fetch(
+          `https://api.talkjs.com/v1/${appId}/users/${userId}/conversations?filter=${encodedFilter}`
+        );
+        const conversations = await res.json();
+        ```
+      operationId: listConversationsInApp
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+        - $ref: "#/components/parameters/Pagination"
+        - $ref: "#/components/parameters/ConversationLimit"
+        - $ref: "#/components/parameters/OrderBy"
+        - $ref: "#/components/parameters/OrderDirection"
+        - $ref: "#/components/parameters/OffsetTs"
+        - $ref: "#/components/parameters/LastMessageBefore"
+        - $ref: "#/components/parameters/LastMessageAfter"
+      responses:
+        '200':
+          $ref: "#/components/responses/ListConversationsInAppSuccessResponse"
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+
+  /v1/{appId}/conversations/{conversationId}:
+    summary: Path for operations on a specific conversation
+    description: |
+      Use this endpoint to create, get, update, or delete a specific conversation.
+
+    get:
+      tags:
+        - Conversations
+      summary: Get a conversation
+      description: Gets a specific conversation.
+      operationId: getConversation
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+        - $ref: "#/components/parameters/ConversationID"
+      responses:
+        '200':
+          $ref: "#/components/responses/GetConversationSuccessResponse"
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+  
+    put:
+      tags:
+        - Conversations
+      summary: Create or update a conversation
+      description: |
+        Creates a conversation, or updates conversation details. 
+
+        To update conversation details, you only need to send the subset of fields you want to update. In that respect, even though you update a conversation with an HTTP `PUT` request method, the update acts similar to an HTTP `PATCH` request method. 
+        
+        **Note:** You can't remove participants from a conversation by providing a list of participants that excludes some existing participants. To remove participants from a conversation, use the participation endpoint.
+      # TODO: Add cross-link to resources once published.
+      operationId: createOrUpdateConversation
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+        - $ref: "#/components/parameters/ConversationID"
+      requestBody:
+        $ref: "#/components/requestBodies/CreateOrUpdateConversationRequestBody"
+      responses:
+        '200':
+          $ref: "#/components/responses/EmptyResponse"
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '415':
+          $ref: "#/components/responses/UnsupportedMediaTypeResponse"
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+
+    delete:
+      tags:
+        - Conversations
+      summary: Delete a conversation
+      description: |
+        Deletes all data and metadata for a certain `conversationId`. Deleting a conversation can't be undone. More specifically, the following happens:
+
+        - You delete all metadata of the conversation.
+        - You delete all messages in the conversation.
+        - You remove all participants from the conversation.
+        - You remove the conversation from all participants' inboxes.
+        - Active TalkJS chat UIs display a "Chat not found"-message, localized to the specified local language.
+
+        ### Remove participants data
+      
+        When you delete a conversation, users who were participants of that conversation continue to exist.
+
+        While currently you can't completely delete a user, you can use the 'Create or update a user'-operation to remove any personally identifiable information associated with a user.
+        
+        To automate the process of removing user data, use the [Anonymize user data](https://github.com/talkjs/talkjs-examples/tree/master/rest-api/anonymizing-user) script from the TalkJS examples GitHub repository.
+      operationId: deleteConversation
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+        - $ref: "#/components/parameters/ConversationID"
+      responses:
+        '200':
+          $ref: "#/components/responses/EmptyResponse"
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+
+  /v1/{appId}/conversations/{conversationId}/readBy/{userId}:
+    summary: Path for operations on the read status of conversations for a specific user
+    description: |
+      Use this endpoint to mark conversations as read for a specific user.
+
+    post:
+      tags:
+        - Conversations
+      summary: Mark a conversation as read
+      description: Marks a conversation as read for a specific user.
+      operationId: markConversationAsRead
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/UserID"
+      requestBody: 
+        $ref: "#/components/requestBodies/EmptyRequestBody" 
+      responses:
+        '200':
+          $ref: "#/components/responses/EmptyResponse"
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '415':
+          $ref: "#/components/responses/UnsupportedMediaTypeResponse"
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+
+  /v1/{appId}/conversations/{conversationId}/messages:
+    summary: Path for operations on messages
+    description: |
+      Use this endpoint to send a message to in a specific conversation, or to list or delete all messages from a conversation.
+
+    post:
+      tags:
+        - Messages
+      summary: Send a message
+      description: |
+        Sends one or more messages to a specific conversation.
+
+        ### Message types
+
+        You can send two types of messages to a conversation: 
+          - a user [message](https://talkjs.com/docs/Reference/Concepts/Messages/) sent on behalf of a user;
+          - a [system message](https://talkjs.com/docs/Reference/Concepts/System_Messages/) sent on behalf of the application.
+
+        You can send a batch of consecutive messages in a single request, and combine user messages and system messages in one request.
+
+        ### Deliver a message exactly once
+
+        If an initial request to send a message fails, you can retry your request. To avoid message duplication on retries, use the `idempotencyKey` field when sending the messages. You can retry sending a message with the same `idempotencyKey` any number of times within the span of 24 hours, and it's sent exactly once.
+
+        ### Attach a file to a message
+
+        To send a message with a file attachment, such as an image, video, or a document, take the following two steps: 
+
+        1. Upload the file you would like to attach to the TalkJS servers, using the 'Upload a file' resource. You'll receive an `attachmentToken` in response to the request.
+        2. Send a message that includes the `attachmentToken` you received when uploading the file. 
+
+      # TODO: Cross-link to the relevant operations of (1) creating a user, (2) setting participants to a conversation, (3) sending files.
+      operationId: sendMessage
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+        - $ref: "#/components/parameters/ConversationID"
+      requestBody:
+        $ref: "#/components/requestBodies/SendMessageRequestBody"
+      responses:
+        '200':
+          $ref: "#/components/responses/SendMessageSuccessResponse"
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '415':
+          $ref: "#/components/responses/UnsupportedMediaTypeResponse"
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+        
+    get:
+      tags:
+        - Messages
+      summary: List messages in a conversation
+      description: |
+        Lists messages in a specific conversation.
+      operationId: listMessages
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/Pagination"
+        - $ref: "#/components/parameters/UserOrMessageLimit"
+      responses:
+        '200':
+          $ref: "#/components/responses/ListMessagesSuccessResponse"
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+  
+    delete:
+      tags:
+        - Messages
+      summary: Delete all messages from a conversation
+      description: |
+        Deletes all messages from a specific conversation. This operation irrevocably deletes all messages in the specified conversation from the TalkJS database, and deletes the messages in real-time from any potentially connected clients. 
+
+        Once you have deleted all messages from a conversation, you can't get them back.
+        
+        **Note:** This endpoint doesn't generate webhooks.
+      operationId: deleteAllMessages
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+        - $ref: "#/components/parameters/ConversationID"
+      responses:
+        '200':
+          $ref: "#/components/responses/EmptyResponse"
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+
+  /v1/{appId}/conversations/{conversationId}/messages/{messageId}:
+    summary: Path for operations on a specific message
+    description: |
+      Use this endpoint to get, edit, or delete a specific message.
+
+    get:
+      tags:
+        - Messages
+      summary: Get a message 
+      description: |
+        Gets a single message from a conversation by its `messageId`. 
+        
+        Getting an individual message can be useful, for example if you want to check whether a user has read the message or not.
+      operationId: getMessage
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/MessageID"
+      responses:
+        '200':
+          $ref: "#/components/responses/GetMessageSuccessResponse"
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+
+    put:
+      tags:
+        - Messages
+      summary: Edit a message
+      description: |
+        You can edit the text field and the custom data of any message that you know the message ID (`id`) of. To find the `id` of the message you want to edit, use the endpoint to list messages in a conversation, or get a list of messages via a Webhook.
+
+        To automatically add a timestamp to the message's `editedAt` field for when a message was last edited, pass the `markEdited` field and set it to `true`. Depending on your theme, an indicator that the user edited the message can now appear in the chat UI.
+      # TODO: Add cross-links to endpoint for listing messages once published.
+      operationId: editMessage
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/MessageID"
+      requestBody:
+        $ref: "#/components/requestBodies/EditMessageRequestBody"
+      responses:
+        '200':
+          $ref: "#/components/responses/EmptyResponse"
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '415':
+          $ref: "#/components/responses/UnsupportedMediaTypeResponse"
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+
+    delete:
+      tags:
+        - Messages
+      summary: Delete a message
+      description: |
+        Deletes a single message from a specific conversation. This operation irrevocably deletes the message from both the TalkJS database, and in real-time from any connected clients.
+
+        If the deleted message contains an attachment, the attachment is also removed from storage.
+
+        When you delete a message, TalkJS sends a `message.deleted` webhook event.
+      operationId: deleteMessage
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/MessageID"
+      responses:
+        '200':
+          $ref: "#/components/responses/EmptyResponse"
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+
+  /v1/{appId}/conversations/{conversationId}/notifications:
+    summary: Path for operations on notifications for a specific conversation
+    description: |
+      Use this endpoint to send notifications to a specific conversation.
+
+    post:
+      tags:
+        - Notifications
+      summary: Send notifications
+      description: |
+        Sends additional notifications to a user for unanswered messages in a specific conversation.
+
+        If a user has [notifications](https://talkjs.com/docs/Features/Notifications/) enabled, TalkJS already automatically sends that user notifications as soon as the [conditions for notifying a user](https://talkjs.com/docs/Features/Notifications/#when-are-notifications-sent) are met. You can use this endpoint to send additional notifications for any unanswered messages in a conversation.
+        
+        An _unanswered message_ is any message that another user sends to a conversation, after the user's own latest message. 
+        
+        For example, in the following conversation between a buyer and a seller, the seller hasn't answered the buyer's final message:
+
+        > **Buyer:** Hey, I'd like to order this chair  
+        > **Seller:** Sure, it's still available!  
+        > [Seller goes offline]  
+        > **Buyer:** Could you tell me how wide it is?
+      
+        When you trigger a notification, all participants in a conversation, apart from the one who sent the latest message, get notified if they have notifications enabled.
+
+        If a user has multiple unanswered messages, they receive only one notification that bundles information about all the unanswered messages.
+
+        ### Notification types
+
+        You can send an [email notification](https://talkjs.com/docs/Features/Notifications/Email_Notifications/), an [SMS notification](https://talkjs.com/docs/Features/Notifications/SMS_Notifications/), or notifications of both types at the same time. 
+
+        ### Webhooks
+        
+        To receive information about the status of the notifications, you can use webhooks to listen for `notification.triggered` and `notification.sent` events.
+        
+        Read more on [webhooks](https://talkjs.com/docs/Reference/Webhooks/).
+
+        ### Use notifications carefully
+        
+        Beware of sending notifications too frequently, as your users may get overloaded. 
+        
+        Sending notifications doesn't distinguish between the situation where a conversation has ended (for example, when the last message is "Ok, bye!") and one that still needs an answer (for example, when the last message is "Can you help?"). 
+        
+        If you only want to send additional notifications when certain conditions are met, you can implement your own filter before programmatically triggering notifications.
+      operationId: sendNotifications
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+        - $ref: "#/components/parameters/ConversationID"
+      requestBody:
+        $ref: "#/components/requestBodies/SendNotificationsRequestBody"
+      responses:
+        '200':
+          $ref: "#/components/responses/EmptyResponse"
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '415':
+          $ref: "#/components/responses/UnsupportedMediaTypeResponse"
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+
+  /v1/{appId}/conversations/{conversationId}/participants/{userId}:
+    summary: Path for operations on a participant in a conversation
+    description: |
+      Use this endpoint to add a participant to or remove a participant from a conversation, or to update a participant's access to and notifications for a conversation.
+
+    put:
+      tags:
+        - Participation
+      summary: Add a user to a conversation
+      description: |
+        A user who is added to a conversation is a [participant](https://talkjs.com/docs/Reference/Concepts/Participants/) in that conversation. For any participant in a conversation, you can specify the following: 
+          
+          - type of access to the conversation
+          - notification settings
+        
+        The operation to add a user to a conversation is idempotent, hence you can call it multiple times in a row. A new request always overwrites existing values.
+
+        ### Group chat sizes
+
+        You can have a maximum of 100 participants per conversation on the Basic plan and 300 participant on the Growth plan, as well as add [guests](https://talkjs.com/docs/Reference/Concepts/Guests/) up to the user limit for your plan. On the Enterprise plan, group chat sizes are customizable to fit your needs.
+
+        For more on group chat sizes, see: [Group chats](https://talkjs.com/docs/Features/Group_Chats/).
+
+        ### Conversation history
+
+        When you add a user to a conversation, that user has access to all of the conversation history, including any history from before they joined. 
+        
+        Similarly, if you temporarily remove a user from a conversation, and add them again later, that user also has access to the complete conversation history, including messages sent when they weren't part of the conversation.
+      operationId: addParticipant
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/UserID"
+      requestBody:
+        $ref: "#/components/requestBodies/AddParticipantRequestBody"
+      responses:
+        '200':
+          $ref: "#/components/responses/EmptyResponse"
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '415':
+          $ref: "#/components/responses/UnsupportedMediaTypeResponse"
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+
+    patch:
+      tags:
+        - Participation
+      summary: Change a user's participation settings
+      description: |
+         Changes a user's participation settings in a conversation. 
+
+         If a user is already a [participant](https://talkjs.com/docs/Reference/Concepts/Participants/) of a conversation, then you can change the following participation settings:
+
+          - type of access to the conversation
+          - notification settings
+         
+         To prevent a participant from being able to read messages from or send messages to a conversation, set their access type to `"None"`.
+
+         The change participation operation is idempotent, and can be called multiple times in a row. This call only updates fields given in the payload, leaving the old ones as they were.
+      operationId: updateParticipation
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/UserID"
+      requestBody:
+        $ref: "#/components/requestBodies/UpdateParticipationRequestBody"
+      responses:
+          '200':
+            $ref: "#/components/responses/EmptyResponse"
+          '400':
+            $ref: '#/components/responses/BadRequestResponse'
+          '401':
+            $ref: '#/components/responses/UnauthorizedResponse'
+          '404':
+            $ref: '#/components/responses/ResourceNotFoundResponse'
+          '415':
+            $ref: "#/components/responses/UnsupportedMediaTypeResponse"
+          '429':
+            $ref: '#/components/responses/TooManyRequestsResponse'
+          '500':
+            $ref: '#/components/responses/InternalServerErrorResponse'
+        
+    delete:
+      tags:
+        - Participation
+      summary: Remove a user from a conversation
+      description: |
+        Removes a participant from a conversation. If a participant is removed from a conversation, they won't have access to new messages sent to the conversation, and are no longer listed as a participant in the conversation.
+
+        The operation to remove a participant is idempotent and can be called multiple times in a row.
+      operationId: removeParticipant
+      parameters:
+      - $ref: "#/components/parameters/AppID"
+      - $ref: "#/components/parameters/ConversationID"
+      - $ref: "#/components/parameters/UserID"
+      responses:
+          '200':
+            $ref: "#/components/responses/EmptyResponse"
+          '400':
+            $ref: '#/components/responses/BadRequestResponse'
+          '401':
+            $ref: '#/components/responses/UnauthorizedResponse'
+          '404':
+            $ref: '#/components/responses/ResourceNotFoundResponse'
+          '429':
+            $ref: '#/components/responses/TooManyRequestsResponse'
+          '500':
+            $ref: '#/components/responses/InternalServerErrorResponse'
+
+  /v1/{appId}/import/conversations/{conversationId}/messages:
+    summary: Path for importing messages into a specific conversation
+    description: |
+      Use this endpoint to import messages into a specific conversation.
+
+    post:
+      tags:
+        - Messages
+      summary: Import messages
+      description: |
+        Imports one or more messages into a conversation. 
+
+        You can only import messages sent by conversation participants. You can't import messages sent by [guests](https://talkjs.com/docs/Reference/Concepts/Guests/) or [system messages](https://talkjs.com/docs/Reference/Concepts/System_Messages/).
+
+        Imported messages don't trigger notifications. Moreover, changes due to importing messages aren't synchronized back to active clients. If a user is currently reading a conversation that you're importing messages into, they need to reload before they see the imported messages.
+
+        ### Import messages with attachments
+
+        To import messages with attachments into a conversation, do the following:
+          
+          1. Upload the file. You'll receive an `attachmentToken` in response.
+          2. Specify the `attachmentToken` when importing the message.
+      
+        The message is now imported with its attachment.
+
+        ### Duplicates
+
+        Duplicate messages aren't removed. If you've sent or imported the same message twice, the message shows up twice, even if the messages have the same timestamp.
+
+        ### Test and live mode
+
+        Import your data into the TalkJS test mode first to check if everything works as expected, before you import your data into live mode. 
+        
+        If anything goes wrong while testing your import, you can use the **Reset all data** button on the **Settings** page of your [dashboard](https://talkjs.com/dashboard/) to irrevocably delete all messages, conversations, and users.
+
+      # TODO: Add links to relevant sections once published.
+      operationId: importMessages
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+        - $ref: "#/components/parameters/ConversationID"
+      requestBody:
+        $ref: "#/components/requestBodies/ImportMessagesRequestBody"
+      responses:
+        '200':
+          $ref: "#/components/responses/EmptyResponse"
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '415':
+          $ref: "#/components/responses/UnsupportedMediaTypeResponse"
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+
+  /v1/{appId}/files:
+    summary: Path for operations on files
+    description: |
+      Use this endpoint to upload files.
+
+    post:
+      tags:
+        - Files
+      summary: Upload a file
+      description: |
+        Uploads a file—such as an image, video, audio file, or document—to the TalkJS servers, so that you can attach the file to a message.
+
+        You can only send content of the type `multipart/form-data` to this endpoint, not a JSON payload.
+
+        For information on how upload a file over HTTP, check the docs of your favorite HTTP client. For example: 
+          - [JavaScript](https://stackoverflow.com/a/40826943/103395)
+          - [Python (Requests)](https://requests.readthedocs.io/en/latest/user/quickstart/#post-a-multipart-encoded-file)
+          - [PHP](http://code.stephenmorley.org/php/sending-files-using-curl/)
+          - [Ruby (RestClient)](https://github.com/rest-client/rest-client#multipart)
+        
+        When uploading a file, you'll receive an `attachmentToken` in response to your request. To send a message with the uploaded file as an attachment, use the 'Send a message' resource and include the `attachmentToken` when sending the message.  
+
+        ### Troubleshooting
+        
+        If you get a 400 Bad Request response, try the following:
+        
+        - Check if your code is explicitly setting a `Content-type: multipart/form-data` header. If so, **remove it**. Most HTTP libraries autogenerate this header when uploading files, and they will usually set the header to something like `Content-Type: multipart/form-data; boundary=a3eb698cd620e766f278e52886c572edcb0e4a97`. TalkJS requires the boundary to parse the data.
+        - Make sure that the file you're trying to upload has a `filename` directive set. Many HTTP libraries do this automatically, or allow you to set it explicitly. Setting a filename directive causes the library to generate a header, such as `Content-Disposition: form-data; file="This is a txt file."; filename="sample.txt"` inside the HTTP body. Many HTTP libraries allow you to give an uploaded file a filename.
+        
+        If you get a 500 Server Error response, reach out through [live support chat](https://talkjs.com/?chat).
+      # TODO: Cross-link to Send a message resource once published.
+      operationId: uploadFile
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+      requestBody:
+        $ref: "#/components/requestBodies/UploadFileRequestBody"
+      responses:
+        '200':
+          $ref: "#/components/responses/UploadFileSuccessResponse"
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+
+  /v1/{appId}/batch:
+    summary: Path for batch operations
+    description: |
+      Use this endpoint to perform batch operations.
+
+    post:
+      tags:
+        - Batch operations
+      summary: Perform batch operations
+      description: |
+        Performs multiple operations in a batch with a single request. You can include a maximum of 10 operations in a single batch request.
+
+        ### Request
+
+        The payload must be an array of operations. Each operation must have the following format:
+
+        `[sequence_number, method, path, payload, options]`
+
+        You can include any TalkJS REST API operation in a batch operation, as long as its request has JSON content, or is empty. 
+        
+        You can't upload files as part of a batch operation, because file uploads require `multipart/form-data`-formatted data. To upload a file, use the 'Upload file' resource instead.
+
+        ### Response
+
+        The response is an array of operation responses. Each operation response has the format:
+
+        `[sequence_number, http_status_code, operation_response]`
+      # TODO: Add crosslink to upload file once published.
+      operationId: batchOperations
+      parameters:
+        - $ref: "#/components/parameters/AppID"
+      requestBody:
+        $ref: "#/components/requestBodies/BatchOperationsRequestBody"
+      responses:
+        '200':
+          $ref: "#/components/responses/BatchOperationSuccessResponse"
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '404':
+          $ref: '#/components/responses/ResourceNotFoundResponse'
+        '415':
+          $ref: "#/components/responses/UnsupportedMediaTypeResponse"
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+
+components:
+  parameters:
+    AppID:
+      name: appId
+      in: path
+      description: |
+        A unique identifier of your TalkJS app. You can find your app ID on the **Settings** page of your [dashboard](https://talkjs.com/dashboard).
+      required: true
+      schema:
+        type: string
+        example: 'abcd1234'
+      
+    UserID:
+      name: userId
+      in: path
+      description: |
+        A unique identifier of a user.
+      required: true
+      schema:
+        type: string
+        example: 'alice'
+    
+    ConversationID:
+      name: conversationId
+      in: path
+      description: |
+        A unique identifier of a conversation.
+      required: true
+      schema:
+        type: string
+        example: 0123456789abcdef
+
+    MessageID:
+      name: messageId
+      in: path
+      description: |
+        An automatically generated unique identifier of a message.
+      required: true
+      schema:
+        type: string
+        example: msg_123ABcdefghiJKlmNOpqRS
+
+    UserOrMessageLimit:
+      name: limit
+      in: query
+      description: |
+        An optional parameter to specify the number of results that should be returned.
+      required: false
+      schema:
+        type: integer
+        example: 25
+        minimum: 1
+        maximum: 100
+        default: 10
+    
+    ConversationLimit:
+      name: limit
+      in: query
+      description: |
+        An optional parameter to specify the number of conversations that should be returned.
+      required: false
+      schema:
+        type: integer
+        example: 25
+        minimum: 1
+        maximum: 30
+        default: 10
+
+    Pagination:
+      name: startingAfter
+      in: query
+      description: |
+        An optional object ID that identifies a place in the record list, to allow you to paginate through a list of results. 
+
+        By default, all records are sorted in descending order based on their `createdAt` property, which is a timestamp of a record's insertion date.
+      required: false
+      schema:
+        type: string
+        example: c10
+      
+    OffsetTs:
+      name: offsetTs
+      in: query
+      description: 
+        An optional timestamp to offset results with. Using `OffsetTs` can be useful combined with `lastActivity` sorting, since conversations can move to the front of the results list when new messages are sent.
+      required: false
+      schema:
+        type: integer
+        example: 1521522849308
+
+    OrderBy:
+      name: orderBy
+      in: query
+      description: |
+        Optional parameter to control the sorting order of conversations. 
+        
+        You can sort conversations either based on the timestamp of their last activity (`lastActivity`), or the timestamp of their date of creation (`createdAt`). Ordering conversations by their creation date can be useful if you want stable sorting.
+      required: false
+      schema:
+        type: string
+        example: "createdAt"
+        default: "lastActivity" 
+        enum: 
+          - "lastActivity"
+          - "createdAt"
+
+    OrderDirection:
+      name: orderDirection
+      in: query
+      description: |
+        Optional parameter to control the sorting order of conversations. You can sort conversations either in descending (`DESC`) or ascending (`ASC`) order.
+      required: false
+      schema:
+        type: string
+        example: "ASC"
+        default: "DESC" 
+        enum: 
+          - "DESC"
+          - "ASC"
+
+    IsOnline:
+      name: isOnline
+      description: |
+        An optional parameter to filter results based on whether a user is online or not.
+      in: query
+      schema:
+        type: boolean
+        example: true
+      
+    LastMessageBefore:
+      name: lastMessageBefore
+      description:  |
+        Optional filter to return only conversations where the last message was sent before a certain timestamp. The timestamp should be a [Unix timestamp](https://developer.mozilla.org/en-US/docs/Glossary/Unix_time) expressed in milliseconds.
+      in: query
+      schema:
+        type: integer
+        example: 1521522849308
+      
+    LastMessageAfter:
+      name: lastMessageAfter
+      description: |
+        Optional filter to return only conversations where the last message was sent after a certain timestamp. The timestamp should be a [Unix timestamp](https://developer.mozilla.org/en-US/docs/Glossary/Unix_time) expressed in milliseconds.        
+      in: query
+      schema:
+        type: integer
+        example: 1521522849308
+      
+    UnreadsOnly:
+      name: unreadsOnly
+      description: | 
+        Optional filter to return only conversations that contain messages the user hasn't read yet.
+      in: query
+      schema:
+        type: boolean
+        example: true
+
+  requestBodies:
+    UpdateAppMetadataRequestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AppMetadata'
+
+    CreateOrUpdateUserRequestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UserCreateOrUpdateData"
+
+    BatchUpdateUsersRequestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/UserBatchUpdateData'
+          
+    ListOnlineUsersRequestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/OnlineUserListCreateData"
+
+    CreateOrUpdateConversationRequestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ConversationCreateOrUpdateData"
+    
+    EmptyRequestBody:
+      content:
+        application/json:
+          schema:
+            description: Empty request body
+            type: object
+    
+    SendMessageRequestBody:
+      content: 
+        application/json:
+          schema:
+            oneOf: 
+              - $ref: "#/components/schemas/UserMessage"
+              - $ref: "#/components/schemas/SystemMessage"
+
+    EditMessageRequestBody:
+      content: 
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessageEditData"
+            
+    SendNotificationsRequestBody:
+      content: 
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Notifications" 
+            
+    AddParticipantRequestBody:
+      content: 
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Participation"
+
+    UpdateParticipationRequestBody:
+      content: 
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ParticipationUpdateData"
+
+    ImportMessagesRequestBody:
+      content: 
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessagesImportData"
+            
+    UploadFileRequestBody:
+      content: 
+        multipart/form-data:
+          schema: 
+            $ref: "#/components/schemas/UploadFile"
+            
+    BatchOperationsRequestBody:
+      content: 
+        application/json:
+          schema:
+            $ref: "#/components/schemas/BatchOperationRequest"
+            
+  responses:
+    GetAppMetadataSuccessResponse:
+      description: App metadata retrieved successfully.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AppMetadata'
+    
+    GetUserSuccessResponse:
+      description: User fetched successfully.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/User"
+
+    ListUsersSuccessResponse:
+      description: Users listed successfully.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/UserList'
+          
+    GetConversationSuccessResponse:
+      description: Conversation fetched successfully.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Conversation"
+
+    ListConversationsForUserSuccessResponse:
+      description: Conversations for a user listed successfully.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ConversationsForUser"
+          
+    ListOnlineUsersSuccessResponse:
+      description: Online users listed successfully.
+      content:
+        application/json:
+          schema: 
+            $ref: "#/components/schemas/OnlineUserList"
+    
+    ListSessionsForUserSuccessResponse:
+      description: Sessions for a user listed successfully.
+      content:
+        application/json:
+          schema: 
+            $ref: "#/components/schemas/Sessions"
+
+    ListConversationsInAppSuccessResponse:
+      description: Conversations listed successfully.
+      content:
+        application/json:
+          schema: 
+            $ref: "#/components/schemas/ConversationsInApp"
+
+    SendMessageSuccessResponse:
+      description: Message or messages sent successfully.
+      content:
+        application/json:
+          schema: 
+            $ref: "#/components/schemas/MessageIDs"
+
+    ListMessagesSuccessResponse:
+      description: Messages listed successfully.
+      content:
+        application/json:
+          schema: 
+            $ref: "#/components/schemas/Messages"
+
+    GetMessageSuccessResponse:
+      description: Message fetched successfully.
+      content:
+        application/json:
+          schema: 
+            $ref: "#/components/schemas/Message"
+
+    UploadFileSuccessResponse:
+      description: File uploaded successfully.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AttachmentToken"
+
+    BatchOperationSuccessResponse:
+      description: Batch operation performed successfully.
+      content:
+        application/json:
+          schema:
+           $ref: "#/components/schemas/BatchOperationResponse"
+
+    EmptyResponse:
+      description: Empty response
+      content:
+        application/json:
+          schema:
+            description: Empty response
+            type: object
+
+    UnauthorizedResponse:
+      description: Authorization information is missing or invalid.
+
+    BadRequestResponse:
+      description: Bad request
+
+    ResourceNotFoundResponse:
+      description: Resource not found
+
+    UnsupportedMediaTypeResponse:
+      description: Unsupported media type
+
+    TooManyRequestsResponse:
+      description: Too many requests
+
+    InternalServerErrorResponse:
+      description: Internal server error
+
+  schemas:
+    AppMetadata:
+      description: |
+        Metadata for a specific app. _Metadata_ of an app include the app's ID, its default locale, and any custom properties.
+      type: object
+      properties:
+        id:
+          description: |
+            A unique identifier of your TalkJS app. You can find your app ID on the **Settings** page of your [dashboard](https://talkjs.com/dashboard).
+          type: string
+          example: abcd1234
+        custom:
+          description: |
+            Global custom fields for the entire app. Custom fields can be used in themes and notification settings. For more on custom fields, see: [Custom fields](https://talkjs.com/docs/Features/Themes/Passing_Data_to_Themes/#using-app-custom-fields).
+          type: [object, "null"]
+          additionalProperties:
+            type: [string, "null"]
+          example:
+            website: https://www.example.com
+        defaultLocale:
+          description: |
+            An IETF language tag for the app's default locale, for localization purposes. The default locale must be one of the supported languages. You can override the default locale for each user.
+          type: string
+          example: ar
+          enum:
+            - ar
+            - bg-BG
+            - bs-BA
+            - cs-CZ
+            - da-DK
+            - de-DE
+            - el-GR
+            - en-US
+            - es-ES
+            - et-EE
+            - fa
+            - fi-FI
+            - fr-FR
+            - he-IL
+            - hi-IN
+            - hr-HR
+            - hu-HU
+            - id-ID
+            - it-IT
+            - ja-JP
+            - ka-GE
+            - ko-KR
+            - nb-NO
+            - nl-NL
+            - pl-PL
+            - pt-BR
+            - ro-RO
+            - ru-RU
+            - sq-AL
+            - sr-SP
+            - sv-SE
+            - tr-TR
+            - uk-UA
+            - vi-VN
+            - zh-CN
+            - zh-TW
+
+    UserList:
+      description: An object that wraps an array of users
+      type: object
+      properties:
+        data:
+          type: array
+          description: An array of users
+          items:
+            $ref: '#/components/schemas/User'
+    
+    User:
+      description: |
+        One single user. A user is a person or a group of people who uses your app. For more on the concept of a user in TalkJS, see: [Users](https://talkjs.com/docs/Reference/Concepts/Users/).
+      type: object
+      properties:
+        id:
+          description: |
+            A unique identifier of a user.
+
+            When setting a user `id`, consider using the same user ID as the one you use inside your own database.
+          type: string
+          example: '0123456789abc'
+          minLength: 1
+          maxLength: 255
+        createdAt:
+          description: |
+            Timestamp of when this message was sent, expressed as the number of milliseconds since the UNIX epoch (1970-01-01, 00:00:00 UTC).
+          type: integer
+          example: 1525249255419
+        name:
+          description: Name of a user
+          type: string
+          example: Alice
+          minLength: 1
+          maxLength: 2048
+        role:
+          description: |
+            A user's role. You can set up roles from the [Roles page of your TalkJS dashboard](https://talkjs.com/dashboard/roles/).
+
+            You can vary many settings per user role, such as the content of their email or SMS notification, the look and feel of the UI, or forbidden words. Make sure the value of `role` corresponds exactly to a role name you set in the dashboard.
+
+            For more information on roles, see: [Roles](https://talkjs.com/docs/Reference/Concepts/Roles/).
+          example: admin
+          type:
+            - string
+            - 'null'
+          minLength: 1
+          maxLength: 255
+        custom:
+          description: |
+            A custom property of a user. Custom properties are made available in the events sent to your code and in your email or SMS notification templates. For more on custom user properties, see: [Custom user properties](https://talkjs.com/docs/Reference/Concepts/Users/#custom).
+          type: object
+          additionalProperties:
+            type:
+              - string
+              - 'null'
+          example:
+            country: 'Bahrain'
+        email:
+          description: |
+            An array of email addresses of a user.
+
+            If enabled, email addresses are used to send a user [email notifications](https://talkjs.com/docs/Features/Notifications/Email_Notifications/) of messages they may have missed while they were offline.
+          example: alice@example.com
+          type: array
+          items:
+            description: A user's email address
+            type:
+              - string
+              - 'null'
+        photoUrl:
+          description: |
+            A URL to a profile image (avatar) of a user. The photo shows up to other users who are in conversation with this user.
+          example: 'https://talkjs.com/images/avatar-1.jpg'
+          type:
+            - string
+            - 'null'
+          minLength: 1
+          maxLength: 2048
+        locale:
+          description: |
+            An [IETF language tag](https://www.w3.org/International/articles/language-tags/) that sets a language and date format for this user. 
+
+            You can set a default locale for your entire app on the **Settings** page of your [TalkJS dashboard](https://talkjs.com/dashboard).
+          type:
+            - string
+            - 'null'
+          example: 'ar'
+          minLength: 1
+        phone:
+          description: |
+            An array of phone numbers of a user in the [E.164 international phone number format](https://support.twilio.com/hc/en-us/articles/223183008-Formatting-International-Phone-Numbers), without spaces.
+
+            If enabled, phone numbers are used to send a user [SMS notifications](https://talkjs.com/docs/Features/Notifications/SMS_Notifications/) for messages they may have missed while they were offline.
+          example: '+97301245678'
+          type: array
+          items:
+            description: A user's telephone number
+            type:
+              - string
+              - 'null'
+        welcomeMessage:
+          description: An optional welcome text shown to another user at the start of a conversation.
+          example: 'Hi there, how are you? :-)'
+          type:
+            - string
+            - 'null'
+          minLength: 1
+          maxLength: 2048
+        availabilityText:
+          description: |
+            An optional neutral text sent by this user at the start of a new conversation, rendered as a [System Message](https://talkjs.com/docs/Reference/Concepts/System_Messages/). 
+
+            `availabilityText` is deprecated in favor of [conversation.welcomeMessages](https://talkjs.com/docs/Reference/Concepts/Conversations/#welcomeMessages).
+          type: [string, "null"]
+          example: "We're usually online during office hours"
+          deprecated: true
+          minLength: 1
+          maxLength: 2048
+        pushTokens:
+          type: object
+          description: |
+            pushTokens is an object that has the keys in the format:
+
+            `provider:TOKEN_ID`
+
+            Where _provider_ is either `fcm` for Android (Firebase Cloud Messaging), or `apns` for iOS (Apple Push Notification Service). And where `TOKEN_ID` is the token ID for your push notification service.
+
+            To register a device for push notifications, set the value to the string `true`. 
+
+            To deregister a device for push notifications on all previously registered devices, set the value to `null`.
+
+            For more on push tokens, see: [Mobile push notifications](https://talkjs.com/docs/Features/Notifications/Mobile_Push_Notifications/).
+          additionalProperties:
+            type:
+              - string
+              - 'null'
+          example:
+            fcm:TOKEN_ID: true
+
+    UserCreateOrUpdateData:
+      description: |
+        One single user. A user is a person or a group of people who uses your app. For more on the concept of a user in TalkJS, see: [Users](https://talkjs.com/docs/Reference/Concepts/Users/).
+      type: object
+      required: 
+        -  name
+      properties:
+        name:
+          description: Name of a user
+          type: string
+          example: Alice
+          minLength: 1
+          maxLength: 2048
+        role:
+          description: |
+            A user's role. You can set up roles from the [Roles page of your TalkJS dashboard](https://talkjs.com/dashboard/roles/).
+
+            You can vary many settings per user role, such as the content of their email or SMS notification, the look and feel of the UI, or forbidden words. Make sure the value of `role` corresponds exactly to a role name you set in the dashboard.
+
+            For more information on roles, see: [Roles](https://talkjs.com/docs/Reference/Concepts/Roles/).
+          example: admin
+          type:
+            - string
+            - 'null'
+          minLength: 1
+          maxLength: 255
+        custom:
+          description: |
+            A custom property of a user. Custom properties are made available in the events sent to your code and in your email or SMS notification templates. For more on custom user properties, see: [Custom user properties](https://talkjs.com/docs/Reference/Concepts/Users/#custom).
+          type: object
+          additionalProperties:
+            type:
+              - string
+              - 'null'
+          example:
+            country: 'Bahrain'
+        email:
+          description: |
+            An array of email addresses of a user.
+
+            If enabled, email addresses are used to send a user [email notifications](https://talkjs.com/docs/Features/Notifications/Email_Notifications/) of messages they may have missed while they were offline.
+          example: alice@example.com
+          type: array
+          items:
+            description: A user's email address
+            type:
+              - string
+              - 'null'
+        photoUrl:
+          description: |
+            A URL to a profile image (avatar) of a user. The photo shows up for other users who are n conversation with this user.
+          example: 'https://talkjs.com/images/avatar-1.jpg'
+          type:
+            - string
+            - 'null'
+          minLength: 1
+          maxLength: 2048
+        locale:
+          description: |
+            An [IETF language tag](https://www.w3.org/International/articles/language-tags/) that sets a language and date format for this user. 
+
+            You can set a default locale for your entire app on the **Settings** page of your [TalkJS dashboard](https://talkjs.com/dashboard).
+          type:
+            - string
+            - 'null'
+          example: 'ar'
+          minLength: 1
+        phone:
+          description: |
+            An array of phone numbers of a user in the [E.164 international phone number format](https://support.twilio.com/hc/en-us/articles/223183008-Formatting-International-Phone-Numbers), without spaces.
+
+            If enabled, phone numbers are used to send a user [SMS notifications](https://talkjs.com/docs/Features/Notifications/SMS_Notifications/) for messages they may have missed while they were offline.
+          example: '+97301245678'
+          type: array
+          items:
+            description: A user's telephone number
+            type:
+              - string
+              - 'null'
+        welcomeMessage:
+          description: An optional welcome text shown to another user at the start of a conversation.
+          example: 'Hi there, how are you? :-)'
+          type:
+            - string
+            - 'null'
+          minLength: 1
+          maxLength: 2048
+        availabilityText:
+          description: |
+            An optional neutral text sent by this user at the start of a new conversation, rendered as a [System Message](https://talkjs.com/docs/Reference/Concepts/System_Messages/). 
+
+            `availabilityText` has been deprecated in favor of [conversation.welcomeMessages](https://talkjs.com/docs/Reference/Concepts/Conversations/#welcomeMessages).
+          type: [string, "null"]
+          example: "We're usually online during office hours"
+          deprecated: true
+          minLength: 1
+          maxLength: 2048
+        pushTokens:
+          type: object
+          description: |
+            pushTokens is an object that has the keys in the format:
+
+            `provider:TOKEN_ID`
+
+            Where _provider_ is either `fcm` for Android (Firebase Cloud Messaging), or `apns` for iOS (Apple Push Notification Service). And where `TOKEN_ID` is the token ID for your push notification service.
+
+            To register a device for push notifications, set the value to the string `true`. 
+
+            To deregister a device for push notifications on all previously registered devices, set the value to `null`.
+
+            For more on push tokens, see: [Mobile push notifications](https://talkjs.com/docs/Features/Notifications/Mobile_Push_Notifications/).
+          additionalProperties:
+            type:
+              - string
+              - 'null'
+          example:
+            fcm:TOKEN_ID: true
+
+    UserBatchUpdateData:
+      description: |
+        A dictionary with user objects to update.
+      type: object
+      additionalProperties:
+        description: |
+          One single user. A user is a person or a group of people who uses your app. For more on the concept of a user in TalkJS, see: [Users](https://talkjs.com/docs/Reference/Concepts/Users/).
+        allOf:
+          - $ref: "#/components/schemas/UserCreateOrUpdateData"
+        required:
+          - name
+      example:
+        alice:
+          name: Alice
+          role: admin
+          custom:
+            country: 'Bahrain'
+          email: ['alice@example.com']
+          photoUrl: 'https://talkjs.com/images/avatar-1.jpg'
+          locale: 'ar'
+          phone: ['+97301245678']
+          welcomeMessage: 'Hi there, how are you? :-)'
+          availabilityText: "We're usually online during office hours"
+          pushTokens:
+            fcm:TOKEN_ID: true
+    
+    ConversationsInApp:
+      description: An object that wraps an array of conversations
+      type: object
+      properties:
+        data:
+          type: array
+          description: |
+            An array with conversations that have been created in a TalkJS application.
+          items:
+            $ref: "#/components/schemas/Conversation"
+            
+    ConversationsForUser:
+      description: An object that wraps an array of conversations
+      type: object
+      properties:
+        data:
+          type: array
+          description: |
+            An array with conversations that a user is part of.
+          items:
+            $ref: "#/components/schemas/ConversationWithUnreadData"
+
+    ConversationCreateOrUpdateData:
+      description: |
+        Details of a conversation that can be set when creating or updating a conversation.
+      type: object
+      properties:
+        participants:
+          description: |
+            An array of user IDs for users that are participants of this conversation.
+          type: array
+          example: ["alice", "zayneb"]
+          minItems: 1
+        subject:  
+          description: |
+            An optional conversation subject that's displayed in the chat header. To delete any existing value, set this property to `null`.
+          type: [string, "null"]
+          example: "Studio headphones"
+          minLength: 0
+          maxLength: 2048
+        welcomeMessages:  
+          description: |
+            An array of messages that are sent directly at the start of a conversation. Welcome messages set at conversation level appear as [system messages](https://talkjs.com/docs/Reference/Concepts/System_Messages/).
+          type: array
+          items: 
+            type: [string, "null"]
+            minLength: 1
+            maxLength: 2048
+          example: ["Hello there!", "I'm currently out of town, leave a message and I'll respond ASAP :)"]
+        custom: 
+          description: |
+            Custom field for a conversation. To delete any existing value, set this property to `null`.
+          type: [object, "null"]
+          additionalProperties: 
+            type: [string, "null"]
+          example: 
+            productId: "012345"
+        photoUrl:   
+          description: |
+            An optional URL to an image that is shown as the photo for the conversation in the chat header.
+          type: [string, "null"]
+          example: "https://example.com/productpictures/012345.jpg"
+    
+    ConversationWithUnreadData:
+      allOf: 
+        - $ref: "#/components/schemas/Conversation"
+        - properties: 
+            isUnread: 
+              description: |
+                Whether this conversation has any unread messages
+              type: [boolean, "null"]
+              example: true
+            unreadMessageCount: 
+              description: The number of unread messages in the conversation
+              type: integer
+              example: 2
+
+    Conversation:
+      description: |
+        Details of a conversation that can be set when creating or updating a conversation.
+      type: object
+      properties: 
+        id: 
+          description: |
+            A unique identifier of a conversation. You determine the conversation ID yourself. For more information on setting a conversation ID, see: [Conversation ID](https://talkjs.com/docs/Reference/Concepts/Conversations/#the-conversation-id).
+          type: string
+          example: "1629972494"
+        participants: 
+          description: |
+            A participant is a user who is a member of a conversation. A participant can be @mentioned in a conversation, get notified of new activity, and is listed in the conversation's member list.
+          type: object
+          properties:
+            access: 
+              description: |
+                A setting to control the type of access that a participant has to a conversation. 
+
+                Participants can have access to a conversation with one of three different types of access right:
+                
+                | Access | Result |
+                | -- | -- |
+                | `ReadWrite` | The participant has full access to the conversation. The participant can read messages from, and write messages to, other users, and can be listed in the conversation header. |
+                | `Read` | The participant has read-only access to the conversation. The participant can read messages from other users, but not post messages themselves. The participant can be listed in the conversation header. |
+                | `None` | The participant has no access to the conversation. The participant can't read messages from or write messages to the conversation, nor are they listed in the header of the conversation.
+              
+                When a participant's access to a conversation is withdrawn, they won't receive any new messages. However, they can still access the messages up to the point at which their access was removed. 
+                
+                If a participant whose access to a conversation was removed at a later point gets their access back, then they can again read the entire conversation history, including all the messages that were sent while they didn't have access.
+              type: string
+              enum:
+                - "Read"
+                - "ReadWrite"
+                - "None"
+            notify: 
+              description: |
+                A setting to control if and when a participant should get notifications for unread messages when they meets the [conditions](https://talkjs.com/docs/Features/Notifications/#when-are-notifications-sent) for getting a notification. 
+                
+                If you have enabled [mentions](https://talkjs.com/docs/Features/Message_Features/Mentions/) for your chat, you can set this notification property to `MentionsOnly` so that participants are only notified when they're mentioned.
+
+                | Notifications | Result |
+                | -- | -- |
+                | `true` | The participant receives notifications. |
+                | `false` | The participant **doesn't** receive notifications. |
+                | `"MentionsOnly"` | 	The participant only receives notifications when they're mentioned in the conversation. |
+              type: [boolean, string, "null"]
+              enum: 
+                - true
+                - false
+                - "MentionsOnly"
+          example:
+            alice: 
+              access: "ReadWrite"
+              notify: "MentionsOnly" 
+            zayneb: 
+              access: "ReadWrite"
+              notify: true 
+        subject:  
+          description: |
+            An optional conversation subject that is displayed in the chat header. To delete any existing value, set this property to `null`.
+          type: [string, "null"]
+          example: "Studio headphones"
+          minLength: 0
+          maxLength: 2048
+        custom: 
+          description: |
+            Custom field for a conversation. To delete any existing value, set this property to `null`.
+          type: object
+          additionalProperties: 
+            type: [string, "null"]
+          example: 
+            productId: "454545"
+        createdAt: 
+          description: |
+            Timestamp for when this conversation was edited, expressed as the number of milliseconds since the UNIX epoch (1970-1-1, 00:00:00 UTC).
+          type: integer
+          example: 1525249255419
+        topicId: 
+          description: |
+            Identifier of the topic of this conversation. 
+
+            `topicId` is deprecated. Instead, use `id` to set a unique identifier of a conversation, and use `subject` to set the subject of a conversation.
+          type: string
+          example: "customer_support"
+          minLength: 1
+          maxLength: 2048
+          deprecated: true
+        photoUrl:  
+          description: |
+            An optional URL to an image that is shown as the photo for the conversation in the chat header.
+          type: [string, "null"]
+          example: "https://example.com/productpictures/012345.jpg"
+          minLength: 1
+          maxLength: 2048
+        welcomeMessages:
+          description: |
+            An array of messages that are sent directly at the start of a conversation. Welcome messages set at conversation level appear as [system messages](https://talkjs.com/docs/Reference/Concepts/System_Messages/).
+          type: array
+          items: 
+            type: [string, "null"]
+          example: ["Hello there!", "I'm currently out of town, leave a message and I'll respond ASAP :)"]   
+        lastMessage:
+          $ref: "#/components/schemas/Message"
+            
+    Sessions:
+      type: array
+      description: |
+        An array with sessions that a user is part of.
+      items:
+        description: A single session for a user
+        type: object
+        properties:
+          isTyping: 
+            description: Indicates whether the user is currently typing a message in this session.
+            type: boolean
+            example: true
+          currentConversationId: 
+            description: A unique identifier of a conversation. 
+            type: [string, "null"]
+            example: 0123456789
+    
+    OnlineUserListCreateData:
+      description: |
+        Requirements for the list of online users to be created.
+      type: object
+      properties:
+        includeBackgroundSessions: 
+          description: |
+            Filter users based on whether they have their TalkJS session in the background or not. The following values are accepted:
+
+            - **false**: Only return users who have a TalkJS UI widget in the foreground.
+            - **true**: Return all online users. Users who has their TalkJS UI widget in the background are returned with an empty `widgets` field.
+          type: boolean
+          example: true
+          default: false
+        selectedConversationId: 
+          description: |
+            Filter users who are online in the selected conversation. Requires passing in a `conversationID`. You can pass an explicit `null` value to filter users who are online but have no conversation selected.
+
+            Omit this field to return online users in all conversations, regardless of whether a conversation is selected.
+          type: [string, "null"]
+          example: 0123456789
+        hasFocus: 
+          description: |
+            Filter users based on whether they have the TalkJS UI in focus or not. Omit this field to get all online users, regardless of whether they have the TalkJS UI in focus.
+          type: boolean
+          example: true
+        isTyping: 
+          description: |
+            Only return users who are currently typing in a conversation. Omit this field to get all users, regardless of whether they're typing.
+          type: boolean
+          example: true
+        userIds: 
+          description: |
+            Only show sessions for users with the given user IDs. Omit this option to not filter on user ID.
+          type: array
+          maxItems: 1000
+          items: 
+            description: A unique identifier of a user.
+            type: string
+          example: ["alice", "sebastian"]
+
+    OnlineUserList:
+      description: Online users.
+      type: object
+      properties:
+        data:
+          description: A data object that wraps online users.
+          type: object
+          additionalProperties:
+            description: |
+              Details of sessions for an online user.
+            type: object
+            properties:
+              status:
+                description: Indicates whether the user is online or not.  
+                type: string
+                example: online
+              backgroundSessions: 
+                $ref: '#/components/schemas/Session'
+              widgets:
+                $ref: '#/components/schemas/Session'
+          example: 
+            alice:
+              status: online
+              backgroundSessions:
+                - custom: 
+                    priority: high
+                  selectedConversationId: 0123456789abcdef
+                  isTyping: false
+                  hasFocus: true
+                  sessionId: 0123456789-0123456789-abcde-abcde
+              widgets:
+                - custom: 
+                    priority: high
+                  selectedConversationId: 0123456789abcdef
+                  isTyping: false
+                  hasFocus: true
+                  sessionId: 0123456789-0123456789-abcde-abcde
+            sebastian:
+              status: online
+              backgroundSessions: 
+                - custom: 
+                    priority: high
+                  selectedConversationId: 0123456789abcdef
+                  isTyping: false
+                  hasFocus: true
+                  sessionId: 0123456789-0123456789-abcde-abcde
+              widgets:
+                - custom: 
+                    priority: high
+                  selectedConversationId: 0123456789abcdef
+                  isTyping: false
+                  hasFocus: false
+                  sessionId: 0123456789-0123456789-abcde-abcde
+              
+    Session:
+      description: |
+        An array of sessions for an online user.
+      type: array
+      items:
+        description: A session for an online user.
+        type: object
+        properties:
+          custom: 
+            description: A custom property of a session. Both keys and values must be strings. 
+            type: object
+            additionalProperties:
+              type: string
+            example:
+              priority: high
+          selectedConversationId: 
+            description: A unique identifier of a selected conversation.
+            type: string
+            example: 0123456789abcdef
+          isTyping: 
+            description: Indicates whether the user is currently typing a message in a conversation in this session.
+            type: boolean
+            example: false
+          hasFocus:
+            description: Indicates whether the user currently has this session in focus. 
+            type: boolean
+            example: true
+          sessionId: 
+            description: A unique identifier of a session.
+            type: string
+            example: 0123456789-0123456789-abcde-abcde
+
+    UserMessage:
+      description: |
+        An array of one or more user [messages](https://talkjs.com/docs/Reference/Concepts/Messages/). 
+
+        To send a message on behalf of a user, make sure that the user has been created, and is a participant in the conversation that you send the message to.
+        
+        You can send a batch of consecutive user messages in a single request, attach a file to the message, or share a user's location.
+
+        If notifications are enabled, then sending a user message triggers a notification. 
+      type: array
+      items: 
+        description: One user message.
+        type: object
+        required: 
+          - sender
+        properties:
+          text: 
+            description: The body text of the message.
+            type: string
+            example: "Great! Let's do that"
+            minLength: 1
+            maxLength: 10000
+          sender: 
+            description: Unique identifier of the sender of the message. A sender of a user message must be a participant in the conversation that the message is sent to.
+            type: string
+            example: alice
+            minLength: 1
+            maxLength: 255
+          type: 
+            description: | 
+              The type of message. User messages are sent on behalf of a user, and must be of the type `"UserMessage"`.
+            type: string
+            example: "UserMessage"
+            default: "UserMessage"
+            enum:
+              - "UserMessage"
+          referencedMessageId: 
+            description: |
+              Use if this message is a reply to another message. An optional unique identifier of the message that this message is replying to. 
+            type: string
+            example: msg_abcdefghijklm
+          custom: 
+            description: A custom property of a user message. Both keys and values must be strings. 
+            type: [object, "null"]
+            additionalProperties: 
+              type: [string, "null"]
+            example: 
+              reminder: true
+          idempotencyKey: 
+            description: |
+              Optional key to ensure that a message gets delivered exactly once, also if you need to retry your request. A message with the same `idempotencyKey` can be retried any number of times, and is sent exactly once.
+    
+              An `idempotencyKey` is associated with a specific message for 24 hours. After 24 hours, you can associate the key with another message.
+
+              **Note:** Make sure not to use the same `idempotencyKey` for different messages within a timespan of 24 hours, because then only the message that gets processed first is sent.
+            type: string
+            minLength: 1
+            maxLength: 256
+            example: one_message
+      example:
+        - text: "Great! Let's do that"
+          sender: alice
+          type: "UserMessage"
+          referencedMessageId: msg_abcdefghijklm
+          custom:
+            reminder: true
+          idempotencyKey: one_message
+
+    SystemMessage:
+      description: |
+        An array of one or more [system messages](https://talkjs.com/docs/Reference/Concepts/System_Messages/) sent on behalf of the application. 
+
+        System messages can be useful for anything from order confirmations to notifications when a user joins a channel.
+  
+        A system message is displayed neutrally in the chat UI. System messages have no sender, and aren't associated with any participant in the conversation..
+        
+        You can [format](https://talkjs.com/docs/Features/Customizations/Formatting/) your system messages, and send a batch of consecutive system messages in a single request. System messages support file attachments, but can't reply to other messages or share a location. 
+        
+        A system message doesn't trigger notifications. 
+      type: array
+      items: 
+        description: One system message.
+        type: object
+        required: 
+          - type
+        properties:
+          text: 
+            description: The body text of the message.
+            type: string
+            example: "Welcome, Alice!"
+            minLength: 1
+            maxLength: 10000
+          type: 
+            description: | 
+              The type of message. System messages, which are sent on behalf of the application, must be of the type `"SystemMessage"`.
+            type: string
+            example: "SystemMessage"
+            enum:
+              - "SystemMessage"
+          custom: 
+            description: A custom property of a system message. Both keys and values must be strings. 
+            type: [object, "null"]
+            additionalProperties: 
+              type: [string, "null"]
+            example: 
+              reminder: true
+          idempotencyKey: 
+            description: |
+              Optional key to ensure that a message gets delivered exactly once, also if you need to retry your request. A message with the same `idempotencyKey` can be retried any number of times, and is sent exactly once.
+    
+              An `idempotencyKey` is associated with a specific message for 24 hours. After 24 hours, you can associate the key with another message.
+
+              **Note:** Make sure not to use the same `idempotencyKey` for different messages within a timespan of 24 hours, because then only the message that gets processed first is sent.
+            type: string
+            minLength: 1
+            maxLength: 256
+            example: one_message
+      example:
+        text: "Welcome, Alice!"
+        type: "SystemMessage"
+        custom:
+          reminder: true
+        idempotencyKey: one_message
+            
+    MessageIDs:
+      description: An array of message IDs.
+      type: array
+      items:
+        description: A unique identifier of a message.
+        type: object
+        properties:
+          id:
+            description: An automatically generated unique identifier of this message.
+            type: string
+            example: "msg_123ABcdefghiJKlmNOpqRS"
+
+    Messages:
+      description: A data object that wraps an array of messages from a conversation.
+      type: object
+      properties:
+        data:
+          description: An array of messages from a conversation.
+          type: array
+          items:
+            $ref: "#/components/schemas/Message"
+
+    Message:
+      description: |
+        A message in a conversation.
+      type: object
+      properties: 
+        id:
+          description: An automatically generated unique identifier of this message.
+          type: string
+          example: "msg_123ABcdefghiJKlmNOpqRS"
+        type: 
+          description: Whether this message is a [message](https://talkjs.com/docs/Reference/Concepts/Messages/) sent by a user, or a [system message](https://talkjs.com/docs/Reference/Concepts/System_Messages/).
+          type: string
+          example: "UserMessage"
+          enum:
+            - "UserMessage" 
+            - "SystemMessage"
+        origin: 
+          description: |
+            Indicates how this message was sent. Possible origin options are:
+              - web browser or mobile WebView (`"web"`)
+              - REST API (`"rest"`)
+              - reply-to-email (`"email"`)
+              - REST API import operation (`"import"`)
+          type: string
+          example: "web"
+          enum: 
+            - "web"
+            - "rest"
+            - "email"
+            - "import"
+        location:
+          description: |
+            An array of two numbers that represent the longitude and latitude of a location, respectively.
+
+            `location` is only given if the message's type is a shared location.
+          type: array
+          items:
+            type: number
+          example: [51.44442681184582, 5.4733118103642395]
+        text:
+          description: |
+            Text of a message body. `text` is only given if the message type is text.
+          type: [string, "null"]
+          example: "Hi, how are you?"
+        custom:
+          description: |
+            A custom object with key-value pairs that you want to associate with a message. Both keys and values must be strings. You can access a custom property in for example API responses, webhook events, and themes.
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            priority: high
+        attachment:
+          description: |
+            An object with the dimensions, location, and filesize (in bytes) of a file attached to this message. `attachment` is a read-only property that is only given if a message is a file transfer. 
+          type: [object, "null"]
+          properties:
+            dimensions: 
+              description: The dimensions of the attachment in pixels.
+              type: object
+              properties: 
+                height: 
+                  description: The height of the attachment, in pixels.
+                  type: integer
+                  example: 1125
+                width: 
+                  description: The width of the attachment, in pixels.
+                  type: integer
+                  example: 516
+            size: 
+              description: The size of the attached file, in bytes.
+              type: integer
+              example: 51552
+            url: 
+              description: The URL where the attachment is stored.
+              type: string
+              example: "https://example.com/attachment.jpg"
+        conversationId:
+          description: Unique ID of the conversation this message is part of.
+          type: string
+          example: "0123456789"
+        createdAt:
+          description: |
+            The time at which the message was posted. For welcome messages the timestamp is always `nil`.
+          type: ["number", "null"]
+          example: 1697711905431
+        senderId:
+          description: A unique identifier of the user who sent the message. For asystem messages the sender is always `nil`.
+          type: [string, "null"]
+          example: "alice"
+        editedAt:
+          description: |
+            Timestamp when this message was edited, expressed as the number of milliseconds since the UNIX epoch (1970-1-1, 00:00:00 UTC).
+          type: integer
+          example: 1629972494633
+        referencedMessageId: 
+          description: Unique identifier of the message that this message is replying to. Referencing a message can be done via TalkJS UI.
+          type: [string, "null"]
+          example: "msg_012ABcdefghiJKlmNOpqRS"
+        readBy: 
+          description: | 
+            An array of user IDs of users who have read this message.
+
+            **Note:** `readBy` is only used for conversations with at most 300 participants. For conversations with 301 or more participants, the `readBy` field will be empty.
+          type: [array, "null"]
+          example: ["zayneb"]
+
+    MessageEditData:
+      description: A single message with details to edit.
+      type: object
+      properties: 
+        custom: 
+          description: |
+            A custom object with key-value pairs that you want to associate with a message. Both keys and values must be strings. You can access a custom property in for example API responses, webhook events, and themes.
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            priority: medium
+        text: 
+          description: Text of a message body. `text` is only given if the message type is text.
+          type: string
+          example: "Hi, how are you?"
+          minLength: 1
+          maxLength: 10000
+        markEdited: 
+          description: |
+            Optional field to set the `editedAt` field of this message to a timestamp for when the message was edited.
+          type: boolean
+          example: true
+          default: false
+
+    Notifications:
+      description: |
+        Details of the notification to send. 
+      type: object
+      required: 
+        -  channel
+      properties:
+        channels: 
+          description: |
+            The channels in which to trigger notifications. Provide at least one channel in which to trigger notifications.
+          type: array
+          minItems: 1
+          items:
+            description: A channel in which to trigger notifications. Possible channels are email and SMS.
+            type: string
+            enum:
+              - "email"
+              - "sms"
+          example: ["email", "sms"]
+        recipients: 
+          description: |
+            An array with user ID of the participants who should receive the notifications. Omit this field to trigger notifications for all participants who have unanswered messages.
+          type: array
+          minItems: 1
+          items:
+            description: A unique identifier of a user
+            type: string
+          example: ["alice", "zayneb"]
+        smsSettings: 
+          description: Settings for SMS-notifications
+          type: object
+          properties:
+            smsTemplate: 
+              description: Template for an SMS-notification
+              type: string
+              example: "({{app.name}}) {{sender.name}}: \"{{messages}}\". Reply here: https://yoursite.com/inbox"
+              minLength: 1
+        emailSettings: 
+          description: Settings for email notifications
+          type: object
+          properties:
+            footer: 
+              description: Footer message in an email notification
+              type: string
+              example: "On behalf of {{sender.name}},\nThe {{app.name}} team"
+              minLength: 1
+            header: 
+              description: Header of an email notification
+              type: string
+              example: "Hi {{recipient.name}},\n\n{{sender.name}} wants to chat with you on {{app.name}}:"
+              minLength: 1
+            subject: 
+              description: Subject of an email notification
+              type: string
+              example: "{{sender.name}} wants to chat with you on {{app.name}}"
+              minLength: 1
+            inboxUrl: 
+              description: URL to an inbox where the participant can find your chat
+              type: string
+              example: "https://yoursite.com/inbox"
+              minLength: 1
+            senderName: 
+              description: Name of the sender of the message that the user receives a notification about
+              type: string
+              example: "{{sender.name}} (via {{app.name}})"
+              minLength: 1
+            inboxLinkText: 
+              description: Text to include in the link back to the chat
+              type: string
+              example: "Click here to join the chat."
+              minLength: 1
+            replySeparator: 
+              description: |
+                Line that separates the notification received from the space in which the user can reply to the email.
+              type: string
+              example: "--- Write ABOVE THIS LINE to post a reply via email ---"
+              minLength: 1
+            unsubscribeText: 
+              description: |
+                Text for a link that allows users to unsubscribe from all email notifications.
+              type: string
+              example: "Unsubscribe from all chat emails"
+              minLength: 1
+
+    Participation:
+      description: Participation settings for a user who is added to a conversation.
+      type: object
+      properties:
+        notify: 
+          description: |
+            Indicates whether a user should receive notifications for activity in this conversation. 
+          type: [boolean, string]
+          enum:
+            - true
+            - false
+            - "MentionsOnly"
+          example: true
+          default: true
+        access:
+          description: |
+              Indicates the type of access a user has to this conversation.
+          type: string
+          enum:
+            - "ReadWrite" 
+            - "Read"
+          example: "Read"
+          default: "ReadWrite"
+
+    ParticipationUpdateData:
+      description: Participation settings to update a user who is part of a conversation.
+      type: object
+      properties:
+        notify: 
+          description: |
+            Indicates whether a user should receive notifications for activity in this conversation. 
+          type: [boolean, string]
+          enum:
+            - true
+            - false
+            - "MentionsOnly"
+          example: true
+          default: true
+        access:
+          description: |
+              Indicates the type of access a user has to this conversation.
+          type: string
+          enum:
+            - "ReadWrite" 
+            - "Read"
+            - "None"
+          example: "None"
+          default: "ReadWrite"
+
+    MessagesImportData:
+      description: An array of messages to import
+      type: array
+      items:
+        description: A message to import
+        type: object
+        required: 
+          - text
+          - sender
+          - timestamp
+          - readBy
+          - type
+          - custom
+        properties:
+          text: 
+            description: The body text of the message.
+            type: string
+            example: "Great! Let's do that"
+            minLength: 1
+            maxLength: 10000
+          sender: 
+            description: Unique identifier of the user who sent the message
+            type: string
+            example: alice
+            minLength: 1
+            maxLength: 255
+          timestamp: 
+            description: Timestamp when this message was posted, expressed as the number of milliseconds since the UNIX epoch (1970-1-1, 00:00:00 UTC).
+            type: integer
+            example: 1629972494633
+          readBy: 
+            description: |
+                An array of user ID of users who have read this message.
+
+                **Note:** `readBy` is only used for conversations with at most 300 participants. For conversations with 301 or more participants, the `readBy` field will be empty.
+            type: array
+            items: 
+              description: Unique identifiers of the users who have read the message
+              type: string
+            example: ["zayneb", "sebastian"]
+          type: 
+            description: |
+              The type of message this concerns. Imported messages can only be of the type `"UserMessage"`.
+            type: string
+            example: "UserMessage"
+          attachmentToken: 
+            description: |
+              Optional token to identify a file to attach to this message. To obtain an attachment token, first upload the file with the 'Upload a file' resource. 
+            type: string
+            example: "aBcdeFGHijKLMNoPQrsT0123456789"
+            minLength: 1
+          custom: 
+            description: |
+              A custom object with key-value pairs that you want to associate with a message. Both keys and values must be strings. You can access a custom property in for example API responses, webhook events, and themes.
+            type: [object, "null"]
+            additionalProperties: 
+              type: [string, "null"] 
+            example:
+              priority: high
+
+    UploadFile:
+      description: Details of a file to upload
+      type: object
+      required: 
+        - file
+        - filename
+      properties: 
+        file:
+          description: File data to upload
+          type: string
+          format: binary
+        filename:
+          description: Name of the file to upload
+          type: string
+          example: "avatar.jpg"
+          
+    AttachmentToken:
+      description: Attachment token
+      type: object
+      properties: 
+        attachmentToken:
+          description: |
+            Attachment token. Use this token to identify a file to attach to a message.
+
+            To obtain an attachment token, first upload the file with the 'Upload a file' resource.
+          type: string
+          example: "aBcdeFGHijKLMNoPQrsT0123456789"
+          minLength: 1
+        
+    BatchOperationRequest:
+      description: An array of operations to perform in a batch.
+      type: array
+      items:
+        type: [integer, string, object]
+        minItems: 3
+        maxItems: 5
+        example: [1, "PUT", "/users/alice", {"name": "Alice"}, {"api_version": "2021-01-01"}]
+        required: 
+          - sequence_number
+          - method
+          - path
+        properties:
+          sequence_number: 
+            description: |
+              Integer that uniquely identifies the operation.
+    
+              **Note:** The sequence number only acts as an identifier, and doesn't determine the order in which operations are executed. If your operations need to happen in a specific order, then request those operations in separate calls.
+            type: integer
+            example: 1
+          method: 
+            description: HTTP method for the operation
+            type: string
+            example: GET
+            enum: 
+              - GET
+              - POST
+              - PUT
+              - PATCH
+              - DELETE
+          path: 
+            description: |
+              Path of the REST API endpoint for the operation that's appended to the `/v1/{appId}` baseUrl
+            type: string
+            example: /users/alice
+          payload: 
+            description: JSON payload. You can use `payload` for PUT and POST requests to specify the payload associated with the REST API operation. You can also use `payload` with string keys and values to specify query parameters to filter results of a GET request.
+            type: object
+            example: 
+              name: Alice
+          options: 
+            description: Mapping containing the key `api_version`, and a string value with the API version
+            type: object
+            example: 
+              api_version: 2021-01-01
+
+    BatchOperationResponse:
+      description: An array of operation responses.
+      type: array
+      items:
+        description: A single operation response
+        type: [integer, array, object, string]
+        properties:
+          sequence_number: 
+            description: | 
+              Unique identifier of the operation. Corresponds to the `sequence_number` that was set in the request.
+            type: integer
+            example: 1
+          http_status_code: 
+            description: Numeric HTTP status code for the REST operation
+            type: integer
+            example: 200
+          operation_response: 
+            description: JSON data returned by the REST operation
+            type: [string, object, array]
+            example: 
+              id: msg_1821ZuPQL8tqKUWqXp8YDF
+        example: [1, 200, { "id": "alice", "name": "Alice"}]
+
+  securitySchemes:
+    JWTAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: APIKey
+
+security:
+  - JWTAuth: []
+  - ApiKeyAuth: []

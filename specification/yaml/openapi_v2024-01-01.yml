@@ -938,7 +938,11 @@ paths:
 
         ### Deliver a message exactly once
 
-        If an initial request to send a message fails, you can retry your request. To avoid message duplication on retries, use the `idempotencyKey` field when sending the messages. You can retry sending a message with the same `idempotencyKey` any number of times within the span of 24 hours, and it's sent exactly once.
+        If an initial request to send a message fails, you can retry your request. To avoid message duplication on retries, use the `idempotencyKey` field when sending the messages. You can retry sending a message with the same `idempotencyKey` any number of times, and it gets sent exactly once.
+    
+        Make sure that your `idempotencyKey` is unique for a message within a conversation. 
+
+        An `idempotencyKey` is associated with a specific message in a conversation for 24 hours. After 24 hours, you can associate the key with another message.
 
         ### Attach a file to a message
 
@@ -2542,9 +2546,9 @@ components:
             description: |
               Optional key to ensure that a message gets delivered exactly once, also if you need to retry your request. A message with the same `idempotencyKey` can be retried any number of times, and is sent exactly once.
     
-              An `idempotencyKey` is associated with a specific message for 24 hours. After 24 hours, you can associate the key with another message.
+              Make sure that your `idempotencyKey` is unique for a message within a conversation. 
 
-              **Note:** Make sure not to use the same `idempotencyKey` for different messages within a timespan of 24 hours, because then only the message that gets processed first is sent.
+              An `idempotencyKey` is associated with a specific message in a conversation for 24 hours. After 24 hours, you can associate the key with another message.
             type: string
             minLength: 1
             maxLength: 256
@@ -2600,9 +2604,9 @@ components:
             description: |
               Optional key to ensure that a message gets delivered exactly once, also if you need to retry your request. A message with the same `idempotencyKey` can be retried any number of times, and is sent exactly once.
     
-              An `idempotencyKey` is associated with a specific message for 24 hours. After 24 hours, you can associate the key with another message.
+              Make sure that your `idempotencyKey` is unique for a message within a conversation. 
 
-              **Note:** Make sure not to use the same `idempotencyKey` for different messages within a timespan of 24 hours, because then only the message that gets processed first is sent.
+              An `idempotencyKey` is associated with a specific message in a conversation for 24 hours. After 24 hours, you can associate the key with another message.
             type: string
             minLength: 1
             maxLength: 256

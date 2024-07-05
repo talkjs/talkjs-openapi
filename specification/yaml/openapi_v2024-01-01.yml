@@ -281,14 +281,15 @@ info:
     | -- | -- |
     | Maximum burst | 600 requests |
     | Maximum queue length | 100 requests |
-    | Sustained rate limit | 9 requests per second, on average |
+    | Sustained rate limit, default | 9 requests per second, on average |
+    | Sustained rate limit, batch requests | 1 request per second, on average |
 
     #### Example
     
     If you would send 700 requests in quick succession, then:
 
     - TalkJS processes and responds to the first 500 requests instantly.
-    - The next 100 requests are put in the queue. Over time, TalkJS processes and responds to these 100 queued requests, at a rate of 9 requests per second.
+    - The next 100 requests are put in the queue. Over time, TalkJS processes and responds to these 100 queued requests, at a rate of 9 requests per second (or 1 request per second for batch requests).
     - The last 100 requests immediately receive an HTTP `429 Too many requests` response.
 
     ### Increasing limits
@@ -1421,7 +1422,7 @@ paths:
         - Batch operations
       summary: Perform batch operations
       description: |
-        Performs multiple operations in a batch with a single request. You can include a maximum of 10 operations in a single batch request.
+        Performs multiple operations in a batch with a single request. You can include a maximum of 10 operations in a single batch request. For batch requests, the REST API rate limits support 500 burst requests, 100 maximum queue length, and 1 batch request per second.
 
         ### Request
 

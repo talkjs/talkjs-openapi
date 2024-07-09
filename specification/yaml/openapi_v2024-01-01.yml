@@ -1422,7 +1422,7 @@ paths:
         - Batch operations
       summary: Perform batch operations
       description: |
-        Performs multiple operations in a batch with a single request. You can include a maximum of 10 operations in a single batch request. For batch requests, the REST API rate limits support 500 burst requests, 100 maximum queue length, and 1 batch request per second.
+        Performs multiple operations in a batch with a single request. You can include a maximum of 10 operations in a single batch request. For batch requests, the REST API rate limits support 500 burst requests, a maximum of 100 requests in the queue, and 1 batch request per second.
 
         ### Request
 
